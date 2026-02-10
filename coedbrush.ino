@@ -4,7 +4,7 @@ Servo esc;
 
 const int escPin = 9;
 
-// Ajusta estos valores si tu ESC lo requiere
+// Ajusta estos valores según tu ESC (la mayoría usan esto)
 const int ESC_MIN = 1000;
 const int ESC_MAX = 2000;
 
