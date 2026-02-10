@@ -1,3 +1,4 @@
+// este código es para prueba y calibración de motores brushless usando un arduino uno :), Recuerda que debe tener BEC tu ESC - Emiliano Castro
 #include <Servo.h>
 
 Servo esc;
