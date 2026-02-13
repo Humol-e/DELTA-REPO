@@ -1,0 +1,107 @@
+#include <PIDController.hpp>
+
+#include <TB6612_ESP32.h>
+
+#include <QTRSensors.h>
+
+// Pines de conexión del MX1919
+#define AIN1 23  // Motor 1
+#define AIN2 22
+
+#define BIN1 21
+#define BIN2 19
+#define PWMA 18  // Tu nuevo pin de velocidad
+
+#define STBY 4
+Motor motor1 = Motor(AIN1, AIN2, PWMA, 1, STBY, 5000, 8, 0);
+Motor motor2 = Motor(BIN1, BIN2, 100, 1, STBY, 5000, 8, 1);
+
+int SpeedMotor = 130;
+
+PID::PIDParameters<double> parameters(1.96, 0.02, .01);
+PID::PIDController<double> pidController(parameters);
+
+double Input, Output, Setpoint;
+
+unsigned long currentTime, previousTime;
+double elapsedTime;
+
+QTRSensors qtr;
+double Setp;
+const uint8_t SensorCount = 8;
+uint16_t sensorValues[SensorCount];
+int basespeed = 100;
+int maxspeed = 200;
+int basespeeda = 100, basespeedb = 100, motorspeedb, motorspeeda;
+int maxspeeda = 40, maxspeedb = 40;
+int conta = 3500;
+
+void setup() {
+  Serial.begin(115200);
+  qtr.setTypeAnalog();
+  qtr.setSensorPins((const uint8_t[]){ 35, 32, 33, 25, 26, 27, 14, 13 }, SensorCount);
+  qtr.setEmitterPin(2);
+  Setp = 3500;
+  pidController.Setpoint = Setp;
+  pidController.SetOutputLimits(-200,200);
+  pidController.TurnOn();
+  delay(500);
+  
+
+
+  pinMode(2, OUTPUT);
+  digitalWrite(2, HIGH);
+  for (uint16_t i = 0; i < 400; i++) {
+    qtr.calibrate();
+  }
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(qtr.calibrationOn.minimum[i]);
+    Serial.print(' ');
+  }
+  Serial.println();
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(qtr.calibrationOn.maximum[i]);
+    Serial.print(' ');
+  }
+
+  delay(1000);
+}
+
+void loop() {
+  uint16_t position = qtr.readLineBlack(sensorValues);
+  for (uint8_t i = 0; i < SensorCount; i++) {
+    Serial.print(sensorValues[i]);
+    Serial.print('\t');
+  }
+  Serial.println(position);
+  PID_control();
+  
+}
+
+
+
+void PID_control() {
+  uint16_t position = qtr.readLineBlack(sensorValues);
+
+  pidController.Input = position;
+  pidController.Update();
+  double correction = pidController.Output;
+
+  int speedA = basespeed + correction;
+  int speedB = basespeed - correction;
+  Serial.println(correction);
+
+  Serial.print("Pos: "); Serial.print(position);
+  Serial.print(" | Error: "); Serial.print(3500 - position);
+  Serial.print(" | PID Out: "); Serial.println(correction);
+  //  Limitar velocidades (Constrain)
+  if (speedA > maxspeed) speedA = maxspeed;
+  if (speedA < 0) speedA = 0;
+
+  if (speedB > maxspeed) speedB = maxspeed;
+  if (speedB < 0) speedB = 0;
+
+  // 5. Mover los motores usando la librería
+  motor1.drive(speedA);
+  motor2.drive(speedB);
+}
