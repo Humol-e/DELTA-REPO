@@ -10,7 +10,7 @@
 
 // Creamos solo el objeto del Motor 1
 // Usamos los 8 parámetros
-Motor motor1 = Motor(AIN1, AIN2, 0, 1, STBY, 5000, 8, 0);
+Motor motor1 = Motor(AIN1, AIN2, PWMA, 1, STBY, 5000, 8, 0);
 
 void setup() {
   Serial.begin(115200);
