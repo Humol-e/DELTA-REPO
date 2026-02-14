@@ -1,11 +1,14 @@
 // este código es para prueba y calibración de motores brushless usando un arduino uno :), Recuerda que debe tener BEC tu ESC - Emiliano Castro
+
+// necesitas la libreria servo.h que se encuentra en libraries.
 #include <Servo.h>
 
 Servo esc;
 
 const int escPin = 9;
 
-// Ajusta estos valores según tu ESC (la mayoría usan esto)
+// Ajusta estos valores si tu ESC lo requiere, miden sus velocidades máximas o mínimas
+// Estos valores son los más comunes
 const int ESC_MIN = 1000;
 const int ESC_MAX = 2000;
 
