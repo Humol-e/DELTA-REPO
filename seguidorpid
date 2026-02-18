@@ -5,10 +5,10 @@
 // Motor A (Izquierdo)
 #define AIN1 21
 #define AIN2 22
-#define PWMA 23 
+#define PWMA 23
 #define BIN1 18
 #define BIN2 5
-#define PWMB 4 
+#define PWMB 4
 #define STBY 19
 
 
@@ -18,7 +18,7 @@
 // KD: Predice el futuro (Súbelo si el robot tiembla mucho)
 double Kp = 0.06;
 double Ki = 0.01;
-double Kd = 2.6;
+double Kd = 0.6;
 
 // Inicializamos con los valores por defecto
 PID::PIDParameters<double> parameters(Kp, Ki, Kd);
@@ -31,9 +31,9 @@ const uint8_t SensorCount = 8;
 uint16_t sensorValues[SensorCount];
 
 // --- VELOCIDADES ---
-int baseSpeed = 45; // Velocidad crucero (0-255)
-int maxSpeed = 75;  // Velocidad tope
-int minSpeed = 30;  // Velocidad tope
+int baseSpeed = 45;  // Velocidad crucero (0-255)
+int maxSpeed = 75;   // Velocidad tope
+int minSpeed = 15;   // Velocidad tope
 
 const int pinEntrada = 15;
 
@@ -41,18 +41,21 @@ BluetoothSerial SerialBT;
 
 void setup() {
   Serial.begin(115200);
-    pinMode(pinEntrada, INPUT_PULLDOWN);
 
   // 1. Configurar Pines de Motores
-  pinMode(AIN1, OUTPUT); pinMode(AIN2, OUTPUT); pinMode(PWMA, OUTPUT);
-  pinMode(BIN1, OUTPUT); pinMode(BIN2, OUTPUT); pinMode(PWMB, OUTPUT);
+  pinMode(AIN1, OUTPUT);
+  pinMode(AIN2, OUTPUT);
+  pinMode(PWMA, OUTPUT);
+  pinMode(BIN1, OUTPUT);
+  pinMode(BIN2, OUTPUT);
+  pinMode(PWMB, OUTPUT);
   pinMode(STBY, OUTPUT);
-  digitalWrite(STBY, HIGH); // Encender Driver
+  digitalWrite(STBY, HIGH);  // Encender Driver
 
   // 2. Configurar Sensor QTR
   qtr.setTypeAnalog();
-  qtr.setSensorPins((const uint8_t[]){35, 32, 33, 25, 26, 27, 14, 13}, SensorCount);
-  
+  qtr.setSensorPins((const uint8_t[]){ 35, 32, 33, 25, 26, 27, 14, 13 }, SensorCount);
+
   // 3. Calibración
   Serial.println(">>> CALIBRANDO... MUEVE EL ROBOT <<<");
   for (uint16_t i = 0; i < 400; i++) {
@@ -60,19 +63,21 @@ void setup() {
     delay(10);
   }
   Serial.println(">>> LISTO <<<");
+  SerialBT.begin("ESP32_Robot_PID");
+  pinMode(pinEntrada, INPUT_PULLDOWN);
 
   // 4. Iniciar PID
-  pidController.Setpoint = 3500; // El centro de la línea para 8 sensores
+  pidController.Setpoint = 3500;  // El centro de la línea para 8 sensores
   pidController.Input = 3500;
-  pidController.SetOutputLimits(-40, 40); // El PID puede darnos corrección total
+  pidController.SetOutputLimits(-40, 40);  // El PID puede darnos corrección total
   pidController.TurnOn();
-  
+
   delay(1000);
 }
 
 void loop() {
   // 1. Leer posición de la línea
-  leerBluetooth(); // revisa bt
+  leerBluetooth();  // revisa bt
 
   uint16_t position = qtr.readLineBlack(sensorValues);
 
@@ -83,84 +88,100 @@ void loop() {
 
   // 3. Aplicar corrección a la velocidad base
   // Si correction es positivo, el robot se fue a la izquierda -> Motor Izq sube, Der baja
-  int motorA_Speed = baseSpeed + correction; 
+  int motorA_Speed = baseSpeed + correction;
   int motorB_Speed = baseSpeed - correction;
 
   int estado = digitalRead(pinEntrada);
 
   // 4. Mover motores (La función se encarga de limitar y dar dirección)
-  if(estado == HIGH){
-  moverMotores(motorA_Speed, motorB_Speed);
+  if (estado == HIGH) {
+    moverMotores(motorA_Speed, motorB_Speed);
 
-  // Debug (opcional, comenta para más velocidad)
-  Serial.print("Pos: "); Serial.print(position);
-  Serial.print(" | PID: "); Serial.print(correction);
-  Serial.print(" | MotA: "); Serial.print(motorA_Speed);
-  Serial.print(" | MotB: "); Serial.println(motorB_Speed);
-  } else{
-    moverMotores(0,0);
+    // Debug (opcional, comenta para más velocidad)
+    Serial.print("Pos: ");
+    Serial.print(position);
+    Serial.print(" | PID: ");
+    Serial.print(correction);
+    Serial.print(" | MotA: ");
+    Serial.print(motorA_Speed);
+    Serial.print(" | MotB: ");
+    Serial.println(motorB_Speed);
+  } else {
+    moverMotores(0, 0);
   }
 }
 
 // --- FUNCIÓN PARA LEER Y CAMBIAR VALORES POR BLUETOOTH ---
 void leerBluetooth() {
   if (SerialBT.available()) {
-    char comando = SerialBT.read(); // Leemos la letra (P, I, D, V)
-    float valor = SerialBT.parseFloat(); // Leemos el número que sigue
+    char comando = SerialBT.read();  
+      delay(10); // pequeña espera para que llegue el número
+     // Leemos la letra (P, I, D, V)
+    double valor = SerialBT.parseFloat();  // Leemos el número que sigue
 
     // Limpiamos el buffer por si quedan caracteres como saltos de linea
-    while(SerialBT.available() > 0) { SerialBT.read(); }
+    while (SerialBT.available() > 0) { SerialBT.read(); }
 
     if (comando == 'P' || comando == 'p') {
       Kp = valor;
-      parameters.Kp = Kp; // Actualizamos el objeto parameters
-      SerialBT.print("Nuevo KP: "); SerialBT.println(Kp);
-    }
-    else if (comando == 'I' || comando == 'i') {
+      parameters.Kp = Kp;  // Actualizamos el objeto parameters
+      SerialBT.print("Nuevo KP: ");
+      SerialBT.println(Kp);
+    } else if (comando == 'I' || comando == 'i') {
       Ki = valor;
       parameters.Ki = Ki;
-      SerialBT.print("Nuevo KI: "); SerialBT.println(Ki);
-    }
-    else if (comando == 'D' || comando == 'd') {
+      SerialBT.print("Nuevo KI: ");
+      SerialBT.println(Ki);
+    } else if (comando == 'D' || comando == 'd') {
       Kd = valor;
       parameters.Kd = Kd;
-      SerialBT.print("Nuevo KD: "); SerialBT.println(Kd);
-    }
-    else if (comando == 'V' || comando == 'v') {
+      SerialBT.print("Nuevo KD: ");
+      SerialBT.println(Kd);
+    } else if (comando == 'V' || comando == 'v') {
       baseSpeed = (int)valor;
-      SerialBT.print("Nueva Velocidad Base: "); SerialBT.println(baseSpeed);
+      SerialBT.print("Nueva Velocidad Base: ");
+      SerialBT.println(baseSpeed);
     }
-    
-    // IMPORTANTE: Dependiendo de tu librería PIDController exacta, 
-    // tal vez necesites llamar a una función para refrescar los cambios.
-    // Si la librería lee 'parameters' por referencia, esto es automático.
-    // Si no, intenta descomentar algo como: 
-    // pidController.SetTunings(parameters); 
+parameters.Kp = Kp;
+parameters.Ki = Ki;
+parameters.Kd = Kd;
+pidController.SetTunings(parameters);
+
   }
 }
 
 
 // Esta función recibe la velocidad (-255 a 255) y decide la dirección
 void moverMotores(int speedA, int speedB) {
-  // Limitar rangos a +/- maxSpeed
+
+  // Si speed es 0 (cuando frenamos), apagamos PWM para evitar zumbidos
+  if (speedA == 0 && speedB == 0) {
+    analogWrite(PWMA, 0);
+    analogWrite(PWMB, 0);
+    return;
+  }
   speedA = constrain(speedA, minSpeed, maxSpeed);
   speedB = constrain(speedB, minSpeed, maxSpeed);
 
-  // --- MOTOR A ---
+  // Motor A
   if (speedA > 0) {
-    digitalWrite(AIN1, LOW); digitalWrite(AIN2, HIGH); // Adelante
+    digitalWrite(AIN1, LOW);
+    digitalWrite(AIN2, HIGH);
   } else {
-    digitalWrite(AIN1, HIGH); digitalWrite(AIN2, LOW); // Atrás
-    speedA = speedA; // Convertir a positivo para el PWM
+    digitalWrite(AIN1, HIGH);
+    digitalWrite(AIN2, LOW);
+    speedA = abs(speedA);
   }
   analogWrite(PWMA, speedA);
 
-  // --- MOTOR B ---
+  // Motor B
   if (speedB > 0) {
-    digitalWrite(BIN1, LOW); digitalWrite(BIN2, HIGH); // Adelante
+    digitalWrite(BIN1, LOW);
+    digitalWrite(BIN2, HIGH);
   } else {
-    digitalWrite(BIN1, HIGH); digitalWrite(BIN2, LOW); // Atrás
-    speedB = speedB; // Convertir a positivo
+    digitalWrite(BIN1, HIGH);
+    digitalWrite(BIN2, LOW);
+    speedB = abs(speedB);
   }
   analogWrite(PWMB, speedB);
 }
