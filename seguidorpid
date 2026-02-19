@@ -11,8 +11,19 @@
 #define PWMB 4
 #define STBY 19
 
+
+const int ledPin = 2;
+
+bool pedirLectura = false;  // agrega esto global arriba
+
 int offsetA = 0;
 int offsetB = 0;
+
+int currentSpeedA = 0;
+int currentSpeedB = 0;
+int rampStep = 5;  // qué tan rápido acelera motor, prueba entre 3 y 10
+
+
 // --- CONFIGURACIÓN PID ---
 // KP: Reacción rápida (Prueba subiendo si oscila poco, bajando si oscila mucho)
 // KI: Acumula error (Déjalo bajo)
@@ -41,6 +52,8 @@ const int pinEntrada = 15;
 BluetoothSerial SerialBT;
 
 void setup() {
+  pinMode(ledPin, OUTPUT);
+
   Serial.begin(115200);
 
   // 1. Configurar Pines de Motores
@@ -52,29 +65,33 @@ void setup() {
   pinMode(PWMB, OUTPUT);
   pinMode(STBY, OUTPUT);
   digitalWrite(STBY, HIGH);  // Encender Driver
+
   analogReadResolution(10);
+  digitalWrite(ledPin, HIGH);  // Enciende el LED
+  delay(300);                 // Espera 1 segundo
+  digitalWrite(ledPin, LOW);   // Apaga el LED
+   
+// 2. Configurar Sensor QTR
+qtr.setTypeAnalog();
+qtr.setSensorPins((const uint8_t[]){ 35, 32, 33, 25, 26, 27, 14, 13 }, SensorCount);
 
-  // 2. Configurar Sensor QTR
-  qtr.setTypeAnalog();
-  qtr.setSensorPins((const uint8_t[]){ 35, 32, 33, 25, 26, 27, 14, 13 }, SensorCount);
+// 3. Calibración
+Serial.println(">>> CALIBRANDO... MUEVE EL ROBOT <<<");
+for (uint16_t i = 0; i < 400; i++) {
+  qtr.calibrate();
+  delay(10);
+}
+Serial.println(">>> LISTO <<<");
+SerialBT.begin("ESP32_Robot_PID");
+pinMode(pinEntrada, INPUT_PULLDOWN);
 
-  // 3. Calibración
-  Serial.println(">>> CALIBRANDO... MUEVE EL ROBOT <<<");
-  for (uint16_t i = 0; i < 400; i++) {
-    qtr.calibrate();
-    delay(10);
-  }
-  Serial.println(">>> LISTO <<<");
-  SerialBT.begin("ESP32_Robot_PID");
-  pinMode(pinEntrada, INPUT_PULLDOWN);
+// 4. Iniciar PID
+pidController.Setpoint = 3500;  // El centro de la línea para 8 sensores
+pidController.Input = 3500;
+pidController.SetOutputLimits(-100, 100, -40, 40);  // El PID puede darnos corrección total
+pidController.TurnOn();
 
-  // 4. Iniciar PID
-  pidController.Setpoint = 3500;  // El centro de la línea para 8 sensores
-  pidController.Input = 3500;
-  pidController.SetOutputLimits(-100, 100, -40, 40);  // El PID puede darnos corrección total
-  pidController.TurnOn();
-
-  delay(1000);
+delay(1000);
 }
 
 void loop() {
@@ -97,11 +114,19 @@ void loop() {
   int estado = digitalRead(pinEntrada);
 
   // 4. Mover motores (La función se encarga de limitar y dar dirección)
-  if (estado == HIGH) {
-    moverMotores(motorA_Speed, motorB_Speed);
+  int targetA = constrain(motorA_Speed, minSpeed, maxSpeed);
+  int targetB = constrain(motorB_Speed, minSpeed, maxSpeed);
 
+  if (estado == HIGH) {
+    if (currentSpeedA < targetA) currentSpeedA = min(currentSpeedA + rampStep, targetA);
+    else if (currentSpeedA > targetA) currentSpeedA = max(currentSpeedA - rampStep, targetA);
+
+    if (currentSpeedB < targetB) currentSpeedB = min(currentSpeedB + rampStep, targetB);
+    else if (currentSpeedB > targetB) currentSpeedB = max(currentSpeedB - rampStep, targetB);
+
+    moverMotores(currentSpeedA, currentSpeedB);
     // Debug (opcional, comenta para más velocidad)
-    Serial.print("Pos: ");
+    /*Serial.print("Pos: ");
     Serial.print(position);
     Serial.print(" | PID: ");
     Serial.print(correction);
@@ -109,13 +134,39 @@ void loop() {
     Serial.print(motorA_Speed);
     Serial.print(" | MotB: ");
     Serial.println(motorB_Speed);
+    */
   } else {
-
     Serial.print("Pos: ");
     Serial.print(position);
     Serial.print(" | PID: ");
     Serial.println(correction);
     moverMotores(0, 0);
+  }
+  if (pedirLectura) {
+    pedirLectura = false;  // reset del flag
+
+    int motA = constrain(motorA_Speed, minSpeed, maxSpeed);
+    int motB = constrain(motorB_Speed, minSpeed, maxSpeed);
+
+    SerialBT.println("=========================");
+    SerialBT.print("| ");
+    for (int i = 0; i < SensorCount; i++) {
+      SerialBT.print("S");
+      SerialBT.print(i);
+      SerialBT.print(":");
+      SerialBT.print(sensorValues[i]);
+      SerialBT.print(" | ");
+    }
+    SerialBT.println();
+    SerialBT.print("Posicion  : ");
+    SerialBT.println(position);
+    SerialBT.print("Correccion: ");
+    SerialBT.println(correction);
+    SerialBT.print("Motor A   : ");
+    SerialBT.println(motA);
+    SerialBT.print("Motor B   : ");
+    SerialBT.println(motB);
+    SerialBT.println("=========================");
   }
 }
 
@@ -157,6 +208,16 @@ void leerBluetooth() {
       offsetB = (int)valor;
       SerialBT.print("Offset B: ");
       SerialBT.println(offsetB);
+    } else if (comando == 'L' || comando == 'l') {
+      pedirLectura = true;
+    } else if (comando == 'C' || comando == 'c') {
+      // Recalibrar
+      SerialBT.println(">>> CALIBRANDO... MUEVE EL ROBOT <<<");
+      for (uint16_t i = 0; i < 400; i++) {
+        qtr.calibrate();
+        delay(10);
+      }
+      SerialBT.println(">>> LISTO <<<");
     }
 
     parameters.Kp = Kp;
