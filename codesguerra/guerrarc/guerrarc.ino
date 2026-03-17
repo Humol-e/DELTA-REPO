@@ -63,6 +63,8 @@ void onGamepadDisconnected(GamepadPtr gp) {
 }
 
 void setup() {
+  setCpuFrequencyMhz(80); 
+
   Serial.begin(115200);
   delay(2000);
   Serial.println("PASO 1 - Serial OK");
