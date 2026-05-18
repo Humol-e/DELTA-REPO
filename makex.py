@@ -14,12 +14,12 @@ smartservo_1 = smartservo_class("M6", "INDEX1")
 encoder_motor_M1 = encoder_motor_class("M1", "INDEX1")
 encoder_motor_M2 = encoder_motor_class("M2", "INDEX1")
 encoder_motor_M5 = encoder_motor_class("M5", "INDEX1")
-encoder_motor_M4 = encoder_motor_class("M4", "INDEX1")
+encoder_motor_M6 = encoder_motor_class("M6", "INDEX1")
 def AUTON():
     global i, j, k, a
     # Avance
 
-    encoder_motor_M4.set_power(20)
+    encoder_motor_M6.set_power(-20)
     encoder_motor_M2.set_power(-20)
     encoder_motor_M1.set_power(-20)
     encoder_motor_M5.set_power(20)
@@ -31,7 +31,7 @@ def AUTON():
     time.sleep(1)
     power_expand_board.set_power("DC1", -38)
     power_expand_board.set_power("DC2", -38)
-    encoder_motor_M4.move_to(360, 0)
+    encoder_motor_M6.move_to(360, 0)
     encoder_motor_M2.move_to(360, 0)
     encoder_motor_M1.move_to(360, 0)
     encoder_motor_M5.move_to(360, 0)
@@ -65,21 +65,22 @@ while True:
 
     # bajar elevador
     while gamepad.is_key_pressed("Down"):
-      power_expand_board.set_power("DC1", -30)
+      power_expand_board.set_power("DC1", 30)
       power_expand_board.set_power("DC2", -30)
 
     # subir elevador
     while gamepad.is_key_pressed("Up"):
-      power_expand_board.set_power("DC1", 115)
-      power_expand_board.set_power("DC2", 100)  
+      power_expand_board.set_power("DC1", -175)
+      power_expand_board.set_power("DC2", 170)  
 
     if gamepad.is_key_pressed("R_Thumb"):
         #hace que el motor se sostenga
-        power_expand_board.set_power("DC2", 43)
+        power_expand_board.set_power("DC2", -43)
         power_expand_board.set_power("DC1", 43)
         lentorro = .28
 
     # apaga todo
+        lentorro = .28
 
     # prende la recoleccion de discos
     if gamepad.is_key_pressed("R1"):
@@ -157,29 +158,29 @@ while True:
     # Calcular potencias 
     M1 = Ly - Lx - Rx 
     M2 = Ly + Lx - Rx 
-    M4 = Ly + Lx + Rx 
+    M6 = Ly + Lx + Rx 
     M5 = Ly - Lx + Rx 
 
     # Normalizar valores (para evitar potencias >100)
-    maxPower = max(abs(M1), abs(M2), abs(M4), abs(M5), 100)
+    maxPower = max(abs(M1), abs(M2), abs(M6), abs(M5), 100)
     M1 = (M1 / maxPower) * 100
     M2 = (M2 / maxPower) * 100
-    M4 = (M4 / maxPower) * 100
+    M6 = (M6 / maxPower) * 100
     M5 = (M5 / maxPower) * 100
 
     M1 *= lentorro
     M2 *= lentorro
-    M4 *= lentorro
+    M6 *= lentorro
     M5 *= lentorro
     # Corregir sentidos de tus motores según me dijiste
     M1 *= -1  # adelante derecha
     M2 *=-1  # atrás derecha
-    M4 *= 1   # adelante izquierda
+    M6 *= 1   # adelante izquierda
     M5 *= 1   # atrás izquierda
 
 
     # Aplicar potencias
-    encoder_motor_M4.set_power(M4)
+    encoder_motor_M6.set_power(M6)
     encoder_motor_M2.set_power(M2)
     encoder_motor_M1.set_power(M1)
     encoder_motor_M5.set_power(M5)
